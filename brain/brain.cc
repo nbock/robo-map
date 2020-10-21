@@ -22,6 +22,8 @@ float log_odd_free = 0.95;
 float count = 0.00;
 float observed_x = 0.00;
 float observed_y = 0.00;
+bool wallfound = false;
+bool transition = false;
 std::atomic<int> estimate_x {0};
 std::atomic<int> estimate_y {0};
 
@@ -143,14 +145,13 @@ callback(Robot* robot)
         size++;
     }
 
-    robot->set_vel(5.0, 5.0);
-    
     int scenario[7] = {false, false, false, false, false, false, false};
     int close[7] = {false, false, false, false, false, false, false};
     for (auto hit : robot->ranges) {
 
-        if (hit.range < 1) {
-             if (abs(hit.angle) < 0.3) {
+        if (hit.range < 1.5) {
+            if (abs(hit.angle) < 0.3) {
+                cout << hit.angle << endl;
                 close[0] = true;
             }
             if (abs(hit.angle - 0.78539) < 0.1) {
@@ -171,7 +172,10 @@ callback(Robot* robot)
             if (abs(hit.angle + 2.35619) < 0.1) {
                 close[6] = true;
             }
-       } else if (hit.range < 2) {
+        } 
+        
+        if (hit.range < 2) {
+            //cout << hit.angle << endl;
             if (abs(hit.angle) < 0.3) {
                 scenario[0] = true;
             }
@@ -195,9 +199,12 @@ callback(Robot* robot)
             }
         }
     }
-    
 
-    if (close[0] && scenario[1]) {
+    if (close[0]) {
+        robot->set_vel(2.0, -2.0);
+        cout << "Close front" << endl;
+        return;
+    } else if (close[1]) {
         robot->set_vel(2.0, -2.0);
         cout << "Close on left" << endl;
         return;
@@ -207,36 +214,51 @@ callback(Robot* robot)
         return;
     }
 
+    if (wallfound) {
+        return;
+    }
+
     if (scenario[0]) {
         robot->set_vel(2.0, -2.0);
         cout << "Case 0" << endl;
         return;
-    } else if (scenario[1] && abs(robot->pos_t - 0.785) < 0.2) {
-        robot->set_vel(1.5, -1.5);
+    } else if (scenario[0] && scenario[1] && scenario[3] && scenario[5]) {
+        robot->set_vel(2.0, -2.0);
+        cout << "All left" << endl;
+        return;  
+    } else if (scenario[1]) {
+        robot->set_vel(1.0, 1.0);
+        wallfound = true;
         cout << "Case 1" << endl;
         return;
-    } else if (scenario[2] && (scenario[1] || scenario[3] || scenario[5])) {
-        robot->set_vel(-2.0, 2.0);
+    } else if (scenario[3] && !scenario[1] && !scenario[0]) {
+        if (robot->pos_t > 0) {
+            robot->set_vel(0.0, 2.0);
+        } else {
+            robot->set_vel(2.0, 0.0);
+        }
         cout << "Case 2.1" << endl;
         return;
-    } else if (scenario[2] && abs(robot->pos_t) - 0.785 < 0.2) {
+    } else if (scenario[2]) {
         robot->set_vel(2.0, -2.0);
         cout << "Case 2.2" << endl;
         return;
     } else if (scenario[3] || scenario[4]) {
         robot->set_vel(1.0, 1.0);
-        cout << "Case 3" << endl;
+        cout << "Case 3.1" << endl;
         return;
     } else if (scenario[5]) {
-        robot->set_vel(0, 1.0);
+        robot->set_vel(0, 3.0);
         cout << "Case 5" << endl;
         return;
     } else if (scenario[6]) {
-        robot->set_vel(1.0, 0);
+        robot->set_vel(2.0, 0);
         cout << "Case 6" << endl;
         return;
     } else {
-        robot->set_vel(1.0, 1.0);
+        wallfound = false;
+        cout << "No hits" << endl;
+        robot->set_vel(0.0, 4.0);
         return;
     }
 
@@ -251,14 +273,13 @@ robot_thread(Robot* robot)
 void
 draw_thread() 
 {
-    clear();
     while (true) {
-        std::this_thread::sleep_for (std::chrono::seconds(3));
+        std::this_thread::sleep_for (std::chrono::seconds(5));
         clear();
         //cout << "Drawing grid" << endl;
         for (int i = 0; i < 208; i++) {
             for (int j = 0; j < 208; j++) {
-                if (grid[i][j] >= 1.7) {
+                if (grid[i][j] >= 1.2) {
                     //cout << "Drawn: " << i << ", " << j << " Confidence: " << grid[i][j] << endl;
                     draw_index(j, i);
                 }
